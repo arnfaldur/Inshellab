@@ -175,16 +175,22 @@ int main(int argc, char** argv) {
  * when we type ctrl-c (ctrl-z) at the keyboard.
  */
 void eval(char* cmdline) {
-	char argv[MAXARGS][MAXLINE];
-	int bg;
+    char* argv[MAXARGS];
+    int  bg;
 
-	bg = parseline(cmdline, argv);
+    bg = parseline(cmdline, argv);
 
-	if(builtin_cmd(argv))
+    if (builtin_cmd(argv)) {
 		return;
+    }
 
+	if (bg) {
 
-	return;
+	} else {
+
+	}
+
+    return;
 }
 
 /*
@@ -245,26 +251,28 @@ int parseline(const char* cmdline, char** argv) {
  * builtin_cmd - If the user has typed a built-in command then execute
  *    it immediately.
  */
-int builtin_cmd(char** argv) { 
-	if(!strcmp(argv[0], "quit")) {
-		exit(0);
+int builtin_cmd(char** argv) {
+    if (!strcmp(argv[0], "quit")) {
+        exit(0);
+    } else if (!strcmp(argv[0], "fg")) {
+
+    } else if (!strcmp(argv[0], "bg")) {
+
+    } else if (!strcmp(argv[0], "jobs")) {
+
 	}
-	return 0; /* not a builtin command */ 
+    return 0; /* not a builtin command */
 }
 
 /*
  * do_bgfg - Execute the builtin bg and fg commands
  */
-void do_bgfg(char** argv) {
-	return;
-}
+void do_bgfg(char** argv) { return; }
 
 /*
  * waitfg - Block until process pid is no longer the foreground process
  */
-void waitfg(pid_t pid) {
-	return;
-}
+void waitfg(pid_t pid) { return; }
 
 /*****************
  * Signal handlers
@@ -277,18 +285,14 @@ void waitfg(pid_t pid) {
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.
  */
-void sigchld_handler(int sig) {
-	return;
-}
+void sigchld_handler(int sig) { return; }
 
 /*
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
  *    user types ctrl-c at the keyboard.  Catch it and send it along
  *    to the foreground job.
  */
-void sigint_handler(int sig) {
-	return;
-}
+void sigint_handler(int sig) { return; }
 
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
