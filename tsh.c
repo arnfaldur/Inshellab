@@ -177,40 +177,34 @@ rovides a clean way to kill the shell */
  */
 void eval(char* cmdline) {
     char* argv[MAXARGS];
-    char buf[MAXLINE];
-    int  bg;
+    char  buf[MAXLINE];
+    int   bg;
     pid_t pid;
 
     strcpy(buf, cmdline);
     bg = parseline(buf, argv);
 
-    if(argv[0] == NULL)
+    if (argv[0] == NULL)
         return;
-    if(builtin_cmd(argv))
-		return;
+    if (builtin_cmd(argv))
+        return;
 
     /* USER JOB TERRITORY */
 
-    int i = 0;
-    while (environ[i] != NULL) {
-        printf("e[%d]: %s\n", i, environ[i]);
-        i++;
-    }
-
-    if ((pid = fork()) == 0) {  // Child runs job
+    if ((pid = fork()) == 0) { // Child runs job
         if (execve(argv[0], argv, environ) < 0) {
             printf("%s: Command not found.\n", argv[0]);
             exit(0);
         }
     }
 
+	addjob(jobs, pid, bg ? BG : FG, buf);
     /* Parent waits for foreground job to terminate */
-    if(!bg) {
+    if (!bg) {
         int status;
-        if(waitpid(pid, &status, 0) < 0)
+        if (waitpid(pid, &status, 0) < 0)
             unix_error("waitfg: waitpid error");
-    }
-    else {
+    } else {
         printf("%d %s", pid, cmdline);
     }
 
@@ -284,7 +278,8 @@ int builtin_cmd(char** argv) {
     } else if (!strcmp(argv[0], "bg")) {
 
     } else if (!strcmp(argv[0], "jobs")) {
-
+        listjobs(jobs);
+        return 1;
     }
     return 0; /* not a builtin command */
 }
@@ -310,17 +305,13 @@ void waitfg(pid_t pid) { return; }
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.
  */
-void sigchld_handler(int sig) {
-    printf("Received SIGCHLD: %d\n", sig);
-}
+void sigchld_handler(int sig) { printf("Received SIGCHLD: %d\n", sig); }
 /*
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
  *    user types ctrl-c at the keyboard.  Catch it and send it along
  *    to the foreground job.
  */
-void sigint_handler(int sig) {
-    printf("Received SIGINT: %d\n", sig);
-}
+void sigint_handler(int sig) { printf("Received SIGINT: %d\n", sig); }
 
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
@@ -328,7 +319,10 @@ void sigint_handler(int sig) {
  *     foreground job by sending it a SIGTSTP.
  */
 void sigtstp_handler(int sig) {
-    printf("Received SIGSTP: %d\n", sig);
+	pid_t pi = fgpid(jobs);
+	printf("%i\n", pi);
+	kill(pi, SIGSTOP);
+	printf("Received SIGSTP: %d\n", sig);
 }
 
 /*********************
