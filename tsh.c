@@ -6,13 +6,13 @@
  * === User information ===
  * Group: GROUPNAME
  * ===
- * User 1: RU-LOGIN
- * SSN: DDMMYY-XXXX
+ * User 1: jokull16
+ * SSN: 060297-2079
  * ===
- * User 2:
- * SSN:
+ * User 2: arnaldur15
+ * SSN: 210891-2939 
  * ===
- * User 3:
+ * User 3: 
  * SSN:
  * === End User Information ===
  */
