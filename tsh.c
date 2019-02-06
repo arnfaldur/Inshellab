@@ -187,7 +187,7 @@ void eval(char* cmdline) {
     if(argv[0] == NULL)
         return;
     if(builtin_cmd(argv))
-         return;
+		return;
 
     /* USER JOB TERRITORY */
 
@@ -219,6 +219,7 @@ void eval(char* cmdline) {
  * the user has requested a FG job.
  */
 int parseline(const char* cmdline, char** argv) {
+
     static char array[MAXLINE]; /* holds local copy of command line */
     char*       buf = array;    /* ptr that traverses command line */
     char*       delim;          /* points to first space delimiter */
