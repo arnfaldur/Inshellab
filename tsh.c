@@ -189,7 +189,7 @@ void eval(char* cmdline) {
     /* USER JOB TERRITORY */
 
     int i = 0;
-    while(environ[i] != NULL) {
+    while (environ[i] != NULL) {
         printf("e[%d]: %s\n", i, environ[i]);
         i++;
     }
