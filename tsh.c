@@ -10,9 +10,9 @@
  * SSN: 060297-2079
  * ===
  * User 2: arnaldur15
- * SSN: 210891-2939 
+ * SSN: 210891-2939
  * ===
- * User 3: 
+ * User 3:
  * SSN:
  * === End User Information ===
  */
@@ -133,7 +133,8 @@ int main(int argc, char** argv) {
     Signal(SIGTSTP, sigtstp_handler); /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler); /* Terminated or stopped child */
 
-    /* This one provides a clean way to kill the shell */
+    /* This one p
+rovides a clean way to kill the shell */
     Signal(SIGQUIT, sigquit_handler);
 
     /* Initialize the job list */
@@ -182,7 +183,7 @@ void eval(char* cmdline) {
 
     strcpy(buf, cmdline);
     bg = parseline(buf, argv);
-    
+
     if(argv[0] == NULL)
         return;
     if(builtin_cmd(argv))
@@ -302,16 +303,16 @@ void waitfg(pid_t pid) { return; }
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.
  */
-void sigchld_handler(int sig) { 
-    printf("Received SIGCHLD: %d\n", sig);    
+void sigchld_handler(int sig) {
+    printf("Received SIGCHLD: %d\n", sig);
 }
 /*
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
  *    user types ctrl-c at the keyboard.  Catch it and send it along
  *    to the foreground job.
  */
-void sigint_handler(int sig) { 
-    printf("Received SIGINT: %d\n", sig);    
+void sigint_handler(int sig) {
+    printf("Received SIGINT: %d\n", sig);
 }
 
 /*
@@ -319,8 +320,8 @@ void sigint_handler(int sig) {
  *     the user types ctrl-z at the keyboard. Catch it and suspend the
  *     foreground job by sending it a SIGTSTP.
  */
-void sigtstp_handler(int sig) { 
-    printf("Received SIGSTP: %d\n", sig);    
+void sigtstp_handler(int sig) {
+    printf("Received SIGSTP: %d\n", sig);
 }
 
 /*********************
