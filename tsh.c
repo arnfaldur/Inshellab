@@ -175,14 +175,20 @@ int main(int argc, char** argv) {
  * when we type ctrl-c (ctrl-z) at the keyboard.
  */
 void eval(char* cmdline) {
-    char argv[MAXARGS][MAXLINE];
+    char* argv[MAXARGS];
     int  bg;
 
     bg = parseline(cmdline, argv);
 
     if (builtin_cmd(argv)) {
-        return;
+		return;
     }
+
+	if (bg) {
+
+	} else {
+
+	}
 
     return;
 }
@@ -248,7 +254,13 @@ int parseline(const char* cmdline, char** argv) {
 int builtin_cmd(char** argv) {
     if (!strcmp(argv[0], "quit")) {
         exit(0);
-    }
+    } else if (!strcmp(argv[0], "fg")) {
+
+    } else if (!strcmp(argv[0], "bg")) {
+
+    } else if (!strcmp(argv[0], "jobs")) {
+
+	}
     return 0; /* not a builtin command */
 }
 
