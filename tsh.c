@@ -174,7 +174,11 @@ int main(int argc, char** argv) {
  * background children don't receive SIGINT (SIGTSTP) from the kernel
  * when we type ctrl-c (ctrl-z) at the keyboard.
  */
-void eval(char* cmdline) { return; }
+void eval(char* cmdline) {
+	char argv[MAXARGS][MAXLINE];
+
+	return;
+}
 
 /*
  * parseline - Parse the command line and build the argv array.
@@ -195,7 +199,6 @@ int parseline(const char* cmdline, char** argv) {
     while (*buf && (*buf == ' ')) { /* ignore leading spaces */
         buf++;
     }
-
     /* Build the argv list */
     argc = 0;
     if (*buf == '\'') {
@@ -204,7 +207,6 @@ int parseline(const char* cmdline, char** argv) {
     } else {
         delim = strchr(buf, ' ');
     }
-
     while (delim) {
         argv[argc++] = buf;
         *delim       = '\0';
@@ -212,7 +214,6 @@ int parseline(const char* cmdline, char** argv) {
         while (*buf && (*buf == ' ')) { /* ignore spaces */
             buf++;
         }
-
         if (*buf == '\'') {
             buf++;
             delim = strchr(buf, '\'');
@@ -242,12 +243,16 @@ int builtin_cmd(char** argv) { return 0; /* not a builtin command */ }
 /*
  * do_bgfg - Execute the builtin bg and fg commands
  */
-void do_bgfg(char** argv) { return; }
+void do_bgfg(char** argv) {
+	return;
+}
 
 /*
  * waitfg - Block until process pid is no longer the foreground process
  */
-void waitfg(pid_t pid) { return; }
+void waitfg(pid_t pid) {
+	return;
+}
 
 /*****************
  * Signal handlers
@@ -260,14 +265,18 @@ void waitfg(pid_t pid) { return; }
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.
  */
-void sigchld_handler(int sig) { return; }
+void sigchld_handler(int sig) {
+	return;
+}
 
 /*
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
  *    user types ctrl-c at the keyboard.  Catch it and send it along
  *    to the foreground job.
  */
-void sigint_handler(int sig) { return; }
+void sigint_handler(int sig) {
+	return;
+}
 
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
