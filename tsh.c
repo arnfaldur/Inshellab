@@ -176,19 +176,36 @@ int main(int argc, char** argv) {
  */
 void eval(char* cmdline) {
     char* argv[MAXARGS];
+    char buf[MAXLINE];
     int  bg;
+    pid_t pid;
 
-    bg = parseline(cmdline, argv);
+    strcpy(buf, cmdline);
+    bg = parseline(buf, argv);
+    
+    if(argv[0] == NULL)
+        return;
+    if(builtin_cmd(argv))
+         return;
 
-    if (builtin_cmd(argv)) {
-		return;
+    /* USER JOB TERRITORY */
+
+    if((pid = fork()) == 0) { // Child runs job
+        if(execve(argv[0], argv, environ) < 0) {
+            printf("%s: Command not found.\n", argv[0]);
+            exit(0);
+        }
     }
 
-	if (bg) {
-
-	} else {
-
-	}
+    /* Parent waits for foreground job to terminate */
+    if(!bg) {
+        int status;
+        if(waitpid(pid, &status, 0) < 0)
+            unix_error("waitfg: waitpid error");
+    }
+    else {
+        printf("%d %s", pid, cmdline);
+    }
 
     return;
 }
@@ -260,7 +277,7 @@ int builtin_cmd(char** argv) {
 
     } else if (!strcmp(argv[0], "jobs")) {
 
-	}
+    }
     return 0; /* not a builtin command */
 }
 
@@ -285,21 +302,26 @@ void waitfg(pid_t pid) { return; }
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.
  */
-void sigchld_handler(int sig) { return; }
-
+void sigchld_handler(int sig) { 
+    printf("Received SIGCHLD: %d\n", sig);    
+}
 /*
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
  *    user types ctrl-c at the keyboard.  Catch it and send it along
  *    to the foreground job.
  */
-void sigint_handler(int sig) { return; }
+void sigint_handler(int sig) { 
+    printf("Received SIGINT: %d\n", sig);    
+}
 
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
  *     the user types ctrl-z at the keyboard. Catch it and suspend the
  *     foreground job by sending it a SIGTSTP.
  */
-void sigtstp_handler(int sig) { return; }
+void sigtstp_handler(int sig) { 
+    printf("Received SIGSTP: %d\n", sig);    
+}
 
 /*********************
  * End signal handlers
