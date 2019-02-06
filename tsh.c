@@ -190,22 +190,26 @@ void eval(char* cmdline) {
         return;
 
     /* USER JOB TERRITORY */
+	sigset_t mask;
+
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGCHLD);
+	sigprocmask(SIG_BLOCK, &mask, NULL);
 
     if ((pid = fork()) == 0) { // Child runs job
+		sigprocmask(SIG_UNBLOCK, &mask, NULL);
         if (execve(argv[0], argv, environ) < 0) {
             printf("%s: Command not found.\n", argv[0]);
             exit(0);
         }
     }
-
-	addjob(jobs, pid, bg ? BG : FG, buf);
+    addjob(jobs, pid, bg ? BG : FG, buf);
+	sigprocmask(SIG_UNBLOCK, &mask, NULL);
     /* Parent waits for foreground job to terminate */
     if (!bg) {
-        int status;
-        if (waitpid(pid, &status, 0) < 0)
-            unix_error("waitfg: waitpid error");
+        waitfg(pid);
     } else {
-        printf("%d %s", pid, cmdline);
+        printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
     }
 
     return;
@@ -274,9 +278,11 @@ int builtin_cmd(char** argv) {
     if (!strcmp(argv[0], "quit")) {
         exit(0);
     } else if (!strcmp(argv[0], "fg")) {
-
+        do_bgfg(argv);
+        return 1;
     } else if (!strcmp(argv[0], "bg")) {
-
+        do_bgfg(argv);
+        return 1;
     } else if (!strcmp(argv[0], "jobs")) {
         listjobs(jobs);
         return 1;
@@ -287,12 +293,26 @@ int builtin_cmd(char** argv) {
 /*
  * do_bgfg - Execute the builtin bg and fg commands
  */
-void do_bgfg(char** argv) { return; }
+void do_bgfg(char** argv) {
+    pid_t         pid = atoi(argv[1]);
+    struct job_t* job = getjobpid(jobs, pid);
+
+    if (!strcmp(argv[0], "fg")) {
+        job->state = FG;
+    } else if (!strcmp(argv[0], "bg")) {
+        job->state = BG;
+    }
+    kill(pid, SIGCONT);
+}
 
 /*
  * waitfg - Block until process pid is no longer the foreground process
  */
-void waitfg(pid_t pid) { return; }
+void waitfg(pid_t pid) {
+    int status;
+    if (waitpid(pid, &status, WUNTRACED) < 0)
+        unix_error("waitfg: waitpid error");
+}
 
 /*****************
  * Signal handlers
@@ -305,7 +325,14 @@ void waitfg(pid_t pid) { return; }
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.
  */
-void sigchld_handler(int sig) { printf("Received SIGCHLD: %d\n", sig); }
+void sigchld_handler(int sig) {
+    pid_t pid;
+	while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
+		printf("Deleting job with pid: %d\n", pid);
+		deletejob(jobs, pid);
+	}
+    printf("Received SIGCHLD: %d\n", sig);
+}
 /*
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
  *    user types ctrl-c at the keyboard.  Catch it and send it along
@@ -319,10 +346,14 @@ void sigint_handler(int sig) { printf("Received SIGINT: %d\n", sig); }
  *     foreground job by sending it a SIGTSTP.
  */
 void sigtstp_handler(int sig) {
-	pid_t pi = fgpid(jobs);
-	printf("%i\n", pi);
-	kill(pi, SIGSTOP);
-	printf("Received SIGSTP: %d\n", sig);
+    struct job_t* job = getjobpid(jobs, fgpid(jobs));
+
+    printf("%i\n", job->pid);
+    kill(job->pid, SIGTSTP);
+
+    job->state = ST;
+
+    printf("Received SIGSTP: %d\n", sig);
 }
 
 /*********************
