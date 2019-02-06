@@ -12,8 +12,8 @@
  * User 2: arnaldur15
  * SSN: 210891-2939
  * ===
- * User 3:
- * SSN:
+ * User 3: aegir15
+ * SSN: 200681-4019
  * === End User Information ===
  */
 #include <ctype.h>
