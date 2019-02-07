@@ -179,10 +179,8 @@ void eval(char* cmdline) {
     char  buf[MAXLINE];
     int   bg;
     pid_t pid;
-
     strcpy(buf, cmdline);
     bg = parseline(buf, argv);
-
     if (argv[0] == NULL)
         return;
     if (builtin_cmd(argv))
@@ -199,7 +197,7 @@ void eval(char* cmdline) {
         setpgid(0, 0);
         sigprocmask(SIG_UNBLOCK, &mask, NULL);
         if (execve(argv[0], argv, environ) < 0) {
-            printf("%s: Command not found.\n", argv[0]);
+            printf("%s: Command not found\n", argv[0]);
             exit(0);
         }
     }
@@ -297,16 +295,40 @@ void do_bgfg(char** argv) {
 	struct job_t* job;
 	pid_t pid = 0;
 	pid_t jid = 0;
-	if (argv[1][0] == '%') {
-		jid = atoi(argv[1]+1);
-		job = getjobjid(jobs, jid);
-		pid = job->pid;
+	if (argv[1] == NULL) {
+		printf("%s command requires PID or %%jobid argument\n", argv[0]);
+		return;
+	} else if (argv[1][0] == '%') {
+		pid = atoi(argv[1]+1);
+		if (pid > MAXJOBS || pid < 0) { // this is really a jid but it's more convenient
+			printf("%%%d: No such job\n", pid);
+			return;
+		}
+		job = getjobjid(jobs, pid); // to read in like this
 	} else {
 		pid = atoi(argv[1]);
+		if (pid > MAXJOBS || pid < 0) {
+			printf("(%d): No such process\n", pid);
+			return;
+		}
 		job = getjobpid(jobs, pid);
-		jid = job->jid;
 	}
-    kill(pid, SIGCONT);
+	if (pid == 0) { // command wasn't readable as a number
+		printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+		return;
+	} else if (job == NULL) { // No job was found with the provided id
+		if (argv[1][0] == '%') {
+			printf("%%%d: No such job\n", pid);
+		} else {
+			printf("(%d): No such process\n", pid);
+		}
+		return;
+	}
+
+	pid = job->pid;
+	jid = job->jid;
+
+	kill(pid, SIGCONT);
     if (!strcmp(argv[0], "fg")) {
         job->state = FG;
         waitfg(pid);
