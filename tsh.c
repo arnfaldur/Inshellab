@@ -380,7 +380,7 @@ void sigtstp_handler(int sig) {
     if (job == NULL)
         return;
 
-    if(kill(job->pid, SIGSTP)) {
+    if(kill(job->pid, SIGTSTP)) {
         unix_error("Error in sigint_handler");
     }
 }
