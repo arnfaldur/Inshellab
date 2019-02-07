@@ -300,10 +300,9 @@ int builtin_cmd(char** argv) {
         exit(0);
     }
 
-    // Run the special "do_bgfg" procedure to 
+    // Run the special "do_bgfg" procedure to
     // handle the bg and fg commands
-    if (!strcmp(argv[0], "fg") || 
-        !strcmp(argv[0], "bg")) {
+    if (!strcmp(argv[0], "fg") || !strcmp(argv[0], "bg")) {
         do_bgfg(argv);
         return 1; // Is a builtin command
     }
@@ -311,9 +310,9 @@ int builtin_cmd(char** argv) {
     // List the processes this shell is responsible for
     if (!strcmp(argv[0], "jobs")) {
         listjobs(jobs);
-        return 1; //Is a builtin command
+        return 1; // Is a builtin command
     }
- 
+
     return 0; // Is not a builtin command
 }
 
@@ -324,42 +323,58 @@ void do_bgfg(char** argv) {
     struct job_t* job;
     pid_t         pid = 0;
     pid_t         jid = 0;
-    
-    //Check if bg or fg received no argument
+
+    // Check if bg or fg received no argument
     if (argv[1] == NULL) {
         printf("%s command requires PID or %%jobid argument\n", argv[0]);
         return;
     }
+    char* strend;
 
-    int isjob = (argv[1][0] == '%');
-    
-    if(isjob) {
-        jid = atoi(argv[1] + 1);
+    // see if the argument is a pid or a jid
+    if (argv[1][0] == '%') { // true if jid
+        jid = strtol(argv[1] + 1, &strend, 10);
+
+        // test if the input is a valid integer
+        if (jid == 0 && argv[1] + 1 == strend) {
+            printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+            return;
+        }
 
         job = getjobjid(jobs, jid);
-    } else {
-        pid = atoi(argv[1]);
 
-        if(pid < 0) { // Argument was not readable as a number
+		// No job was found with the provided id
+		if (job == NULL) {
+			printf("%%%d: No such job\n", jid);
+			return;
+		}
+    } else {
+        pid = strtol(argv[1], &strend, 10);
+
+        // test if the input is a valid integer
+        if (pid < 0 || (pid == 0 && argv[1] == strend)) {
             printf("%s: argument must be a PID or %%jobid\n", argv[0]);
             return;
         }
 
         job = getjobpid(jobs, pid);
-    }
 
-    if (job == NULL) { // No job was found with the provided id
-        printf(isjob ? "%%%d: No such job\n" : "(%d): No such process\n", pid);
-        return;
+		// No job was found with the provided id
+		if (job == NULL) {
+			printf("(%d): No such process\n", pid);
+			return;
+		}
     }
 
     pid = job->pid;
     jid = job->jid;
 
+    // Send a SIGCONT signal if the job is stopped
     if (job->state == ST) {
         kill(-pid, SIGCONT);
     }
 
+	// Set the state (FG / BG) and wait or notify
     if (!strcmp(argv[0], "fg")) {
         job->state = FG;
         waitfg(pid);
