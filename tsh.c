@@ -333,37 +333,53 @@ void do_bgfg(char** argv) {
         printf("%s command requires PID or %%jobid argument\n", argv[0]);
         return;
     }
+    char* strend;
 
-    int isjob = (argv[1][0] == '%');
+    // see if the argument is a pid or a jid
+    if (argv[1][0] == '%') { // true if jid
+        jid = strtol(argv[1] + 1, &strend, 10);
 
-    if (isjob) {
-        jid = atoi(argv[1] + 1);
+        // test if the input is a valid integer
+        if (jid == 0 && argv[1] + 1 == strend) {
+            printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+            return;
+        }
 
         job = getjobjid(jobs, jid);
-    } else {
-        pid = atoi(argv[1]);
 
-        if (pid < 0) { // Argument was not readable as a number
+		// No job was found with the provided id
+		if (job == NULL) {
+			printf("%%%d: No such job\n", jid);
+			return;
+		}
+    } else {
+        pid = strtol(argv[1], &strend, 10);
+
+        // test if the input is a valid integer
+        if (pid < 0 || (pid == 0 && argv[1] == strend)) {
             printf("%s: argument must be a PID or %%jobid\n", argv[0]);
             return;
         }
 
         job = getjobpid(jobs, pid);
-    }
 
-    if (job == NULL) { // No job was found with the provided id
-        printf(isjob ? "%%%d: No such job\n" : "(%d): No such process\n", pid);
-        return;
+		// No job was found with the provided id
+		if (job == NULL) {
+			printf("(%d): No such process\n", pid);
+			return;
+		}
     }
 
     pid = job->pid;
     jid = job->jid;
 
+    // Send a SIGCONT signal if the job is stopped
     if (job->state == ST) {
         if(kill(-pid, SIGCONT) < 0)
             unix_error("Kill error");
     }
 
+	// Set the state (FG / BG) and wait or notify
     if (!strcmp(argv[0], "fg")) {
         job->state = FG;
         waitfg(pid);
@@ -399,7 +415,7 @@ void waitfg(pid_t pid) {
 // Returns size of a string
 static size_t sio_strlen(char s[]) {
     int i = 0;
-    
+
     while (s[i] != '\0')
         ++i;
     return i;
