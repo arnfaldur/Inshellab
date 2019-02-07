@@ -330,6 +330,7 @@ void do_bgfg(char** argv) {
     jid = job->jid;
 
     kill(pid, SIGCONT);
+
     if (!strcmp(argv[0], "fg")) {
         job->state = FG;
         waitfg(pid);
@@ -443,7 +444,7 @@ void sigchld_handler(int sig) {
             sio_puts("] (");
             sio_putl(pid);
             sio_puts(") stopped by signal ");
-            sio_putl(WTERMSIG(status));
+            sio_putl(WSTOPSIG(status));
             sio_puts("\n");
 
             getjobpid(jobs, pid)->state = ST;
