@@ -133,8 +133,7 @@ int main(int argc, char** argv) {
     Signal(SIGTSTP, sigtstp_handler); /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler); /* Terminated or stopped child */
 
-    /* This one p
-rovides a clean way to kill the shell */
+    /* This one provides a clean way to kill the shell */
     Signal(SIGQUIT, sigquit_handler);
 
     /* Initialize the job list */
@@ -335,17 +334,21 @@ void waitfg(pid_t pid) {
 void sigchld_handler(int sig) {
     pid_t pid;
     int status;
+    // Should generally only run once
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+        // Process exited normally
         if(WIFEXITED(status)) {
             deletejob(jobs, pid);
             return;
         }
+        // Process terminated by a signal
         if(WIFSIGNALED(status)) {
             printf("Job [%d] (%d) ", pid2jid(pid), pid);
-            printf("terminated by signal %d", WTERMSIG(status));
+            printf("terminated by signal %d\n", WTERMSIG(status));
             deletejob(jobs, pid);
             return;
         }
+        // Process stopped by a signal
         if(WIFSTOPPED(status)) {
             getjobpid(jobs, pid)->state = ST;
         }
@@ -362,7 +365,9 @@ void sigint_handler(int sig) {
     if (job == NULL)
         return;
 
-    kill(job->pid, SIGINT);
+    if(kill(job->pid, SIGINT)) {
+        unix_error("Error in sigint_handler");
+    }
 }
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
@@ -375,8 +380,9 @@ void sigtstp_handler(int sig) {
     if (job == NULL)
         return;
 
-    printf("%i\n", job->pid);
-    kill(job->pid, SIGTSTP);
+    if(kill(job->pid, SIGSTP)) {
+        unix_error("Error in sigint_handler");
+    }
 }
 
 /*********************
