@@ -350,6 +350,8 @@ void sigchld_handler(int sig) {
         }
         // Process stopped by a signal
         if(WIFSTOPPED(status)) {
+            printf("Job [%d] (%d) ", pid2jid(pid), pid);
+            printf("stopped by signal %d\n", WSTOPSIG(status));
             getjobpid(jobs, pid)->state = ST;
         }
     }
@@ -381,7 +383,7 @@ void sigtstp_handler(int sig) {
         return;
 
     if(kill(job->pid, SIGTSTP)) {
-        unix_error("Error in sigint_handler");
+        unix_error("Error in sigtstp_handler");
     }
 }
 
