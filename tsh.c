@@ -216,6 +216,10 @@ void eval(char* cmdline) {
         }
     }
 
+    // fork error handling
+    if(pid < 0)
+        unix_error("fork() error");
+
     // Add the process to the current jobs list
     // and set its state (BG/FG) appropriately
     addjob(jobs, pid, bg ? BG : FG, buf);
@@ -356,7 +360,8 @@ void do_bgfg(char** argv) {
     jid = job->jid;
 
     if (job->state == ST) {
-        kill(-pid, SIGCONT);
+        if(kill(-pid, SIGCONT) < 0)
+            unix_error("Kill error");
     }
 
     if (!strcmp(argv[0], "fg")) {
