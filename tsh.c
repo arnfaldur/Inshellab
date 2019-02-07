@@ -182,21 +182,23 @@ void eval(char* cmdline) {
 
     // Save the cmdline into a local buffer
     strcpy(buf, cmdline);
-    
+
     // Parse the raw command line input
     bg = parseline(buf, argv);
-    
+
     // Just return to prompt if there are no arguments
     if (argv[0] == NULL)
         return;
-    
+
     // Automatically run native shell commands
     if (builtin_cmd(argv))
         return;
 
     /* USER JOB TERRITORY */
-    sigset_t mask;
 
+    /* Block SIGCHLD signals temporarily to avoid race condition
+      (job is deleted before it is added) */
+    sigset_t mask;
     sigemptyset(&mask);
     sigaddset(&mask, SIGCHLD);
     sigprocmask(SIG_BLOCK, &mask, NULL);
@@ -204,16 +206,21 @@ void eval(char* cmdline) {
     /* Fork a new process to run user job */
     if ((pid = fork()) == 0) { // Child runs job
         // Give new process it's own foreground group
-        setpgid(0, 0); 
+        setpgid(0, 0);
         // Unblock SIGCHLD signals
         sigprocmask(SIG_UNBLOCK, &mask, NULL);
-        //Attempt to run the given command
+        // Attempt to run the given command
         if (execve(argv[0], argv, environ) < 0) {
             printf("%s: Command not found\n", argv[0]);
             exit(0);
         }
     }
+
+    // Add the process to the current jobs list
+    // and set its state (BG/FG) appropriately
     addjob(jobs, pid, bg ? BG : FG, buf);
+
+    // Unblock SIGCHLD signals since it should be safe
     sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
     /* Determine if process is to be run in foreground or background */
@@ -287,19 +294,27 @@ int parseline(const char* cmdline, char** argv) {
  *    it immediately.
  */
 int builtin_cmd(char** argv) {
+
+    // Exit the program if the user has typed "quit"
     if (!strcmp(argv[0], "quit")) {
         exit(0);
-    } else if (!strcmp(argv[0], "fg")) {
-        do_bgfg(argv);
-        return 1;
-    } else if (!strcmp(argv[0], "bg")) {
-        do_bgfg(argv);
-        return 1;
-    } else if (!strcmp(argv[0], "jobs")) {
-        listjobs(jobs);
-        return 1;
     }
-    return 0; /* not a builtin command */
+
+    // Run the special "do_bgfg" procedure to 
+    // handle the bg and fg commands
+    if (!strcmp(argv[0], "fg") || 
+        !strcmp(argv[0], "bg")) {
+        do_bgfg(argv);
+        return 1; // Is a builtin command
+    }
+
+    // List the processes this shell is responsible for
+    if (!strcmp(argv[0], "jobs")) {
+        listjobs(jobs);
+        return 1; //Is a builtin command
+    }
+ 
+    return 0; // Is not a builtin command
 }
 
 /*
@@ -309,21 +324,30 @@ void do_bgfg(char** argv) {
     struct job_t* job;
     pid_t         pid = 0;
     pid_t         jid = 0;
+    
+    //Check if bg or fg received no argument
     if (argv[1] == NULL) {
         printf("%s command requires PID or %%jobid argument\n", argv[0]);
         return;
     }
-    int isjob = argv[1][0] == '%';
-    pid       = isjob ? atoi(argv[1] + 1) : atoi(argv[1]);
-    if (pid > MAXJOBS || pid < 0) {
-        printf(isjob ? "%%%d: No such job\n" : "(%d): No such process\n", pid);
-        return;
-    } else if (pid == 0) { // command wasn't readable as a number
-        printf("%s: argument must be a PID or %%jobid\n", argv[0]);
-        return;
+
+    int isjob = (argv[1][0] == '%');
+    
+    if(isjob) {
+        jid = atoi(argv[1] + 1);
+
+        job = getjobjid(jobs, jid);
+    } else {
+        pid = atoi(argv[1]);
+
+        if(pid < 0) { // Argument was not readable as a number
+            printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+            return;
+        }
+
+        job = getjobpid(jobs, pid);
     }
 
-    job = isjob ? getjobjid(jobs, pid) : getjobpid(jobs, pid);
     if (job == NULL) { // No job was found with the provided id
         printf(isjob ? "%%%d: No such job\n" : "(%d): No such process\n", pid);
         return;
