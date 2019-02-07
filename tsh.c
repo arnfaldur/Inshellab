@@ -190,21 +190,22 @@ void eval(char* cmdline) {
         return;
 
     /* USER JOB TERRITORY */
-	sigset_t mask;
+    sigset_t mask;
 
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGCHLD);
-	sigprocmask(SIG_BLOCK, &mask, NULL);
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &mask, NULL);
 
     if ((pid = fork()) == 0) { // Child runs job
-		sigprocmask(SIG_UNBLOCK, &mask, NULL);
+        setpgid(0, 0);
+        sigprocmask(SIG_UNBLOCK, &mask, NULL);
         if (execve(argv[0], argv, environ) < 0) {
             printf("%s: Command not found.\n", argv[0]);
             exit(0);
         }
     }
     addjob(jobs, pid, bg ? BG : FG, buf);
-	sigprocmask(SIG_UNBLOCK, &mask, NULL);
+    sigprocmask(SIG_UNBLOCK, &mask, NULL);
     /* Parent waits for foreground job to terminate */
     if (!bg) {
         waitfg(pid);
@@ -296,22 +297,28 @@ int builtin_cmd(char** argv) {
 void do_bgfg(char** argv) {
     pid_t         pid = atoi(argv[1]);
     struct job_t* job = getjobpid(jobs, pid);
-
     if (!strcmp(argv[0], "fg")) {
         job->state = FG;
+        waitfg(pid);
     } else if (!strcmp(argv[0], "bg")) {
         job->state = BG;
     }
-    kill(pid, SIGCONT);
+    //  kill(pid, SIGCONT);
 }
 
 /*
  * waitfg - Block until process pid is no longer the foreground process
  */
 void waitfg(pid_t pid) {
-    int status;
-    if (waitpid(pid, &status, WUNTRACED) < 0)
-        unix_error("waitfg: waitpid error");
+    //  int status;
+    //  if (waitpid(pid, &status, WUNTRACED) < 0)
+    //      unix_error("waitfg: waitpid error");
+
+    struct job_t* job = getjobpid(jobs, pid);
+
+    while (job->state == FG) {
+        sleep(1);
+    }
 }
 
 /*****************
@@ -327,19 +334,36 @@ void waitfg(pid_t pid) {
  */
 void sigchld_handler(int sig) {
     pid_t pid;
-	while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
-		printf("Deleting job with pid: %d\n", pid);
-		deletejob(jobs, pid);
-	}
-    printf("Received SIGCHLD: %d\n", sig);
+    int status;
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+        if(WIFEXITED(status)) {
+            deletejob(jobs, pid);
+            return;
+        }
+        if(WIFSIGNALED(status)) {
+            printf("Job [%d] (%d) ", pid2jid(pid), pid);
+            printf("terminated by signal %d", WTERMSIG(status));
+            deletejob(jobs, pid);
+            return;
+        }
+        if(WIFSTOPPED(status)) {
+            getjobpid(jobs, pid)->state = ST;
+        }
+    }
 }
 /*
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
  *    user types ctrl-c at the keyboard.  Catch it and send it along
  *    to the foreground job.
  */
-void sigint_handler(int sig) { printf("Received SIGINT: %d\n", sig); }
+void sigint_handler(int sig) {
+    struct job_t* job = getjobpid(jobs, fgpid(jobs));
 
+    if (job == NULL)
+        return;
+
+    kill(job->pid, SIGINT);
+}
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
  *     the user types ctrl-z at the keyboard. Catch it and suspend the
@@ -348,12 +372,11 @@ void sigint_handler(int sig) { printf("Received SIGINT: %d\n", sig); }
 void sigtstp_handler(int sig) {
     struct job_t* job = getjobpid(jobs, fgpid(jobs));
 
+    if (job == NULL)
+        return;
+
     printf("%i\n", job->pid);
     kill(job->pid, SIGTSTP);
-
-    job->state = ST;
-
-    printf("Received SIGSTP: %d\n", sig);
 }
 
 /*********************
