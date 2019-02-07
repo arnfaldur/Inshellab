@@ -179,10 +179,8 @@ void eval(char* cmdline) {
     char  buf[MAXLINE];
     int   bg;
     pid_t pid;
-
     strcpy(buf, cmdline);
     bg = parseline(buf, argv);
-
     if (argv[0] == NULL)
         return;
     if (builtin_cmd(argv))
@@ -199,7 +197,7 @@ void eval(char* cmdline) {
         setpgid(0, 0);
         sigprocmask(SIG_UNBLOCK, &mask, NULL);
         if (execve(argv[0], argv, environ) < 0) {
-            printf("%s: Command not found.\n", argv[0]);
+            printf("%s: Command not found\n", argv[0]);
             exit(0);
         }
     }
@@ -297,16 +295,42 @@ void do_bgfg(char** argv) {
     struct job_t* job;
     pid_t         pid = 0;
     pid_t         jid = 0;
-    if (argv[1][0] == '%') {
-        jid = atoi(argv[1] + 1);
-        job = getjobjid(jobs, jid);
-        pid = job->pid;
+    if (argv[1] == NULL) {
+        printf("%s command requires PID or %%jobid argument\n", argv[0]);
+        return;
+    } else if (argv[1][0] == '%') {
+        pid = atoi(argv[1] + 1);
+        if (pid > MAXJOBS ||
+            pid < 0) { // this is really a jid but it's more convenient
+            printf("%%%d: No such job\n", pid);
+            return;
+        }
+        job = getjobjid(jobs, pid); // to read in like this
     } else {
         pid = atoi(argv[1]);
+        if (pid > MAXJOBS || pid < 0) {
+            printf("(%d): No such process\n", pid);
+            return;
+        }
         job = getjobpid(jobs, pid);
-        jid = job->jid;
     }
+    if (pid == 0) { // command wasn't readable as a number
+        printf("%s: argument must be a PID or %%jobid\n", argv[0]);
+        return;
+    } else if (job == NULL) { // No job was found with the provided id
+        if (argv[1][0] == '%') {
+            printf("%%%d: No such job\n", pid);
+        } else {
+            printf("(%d): No such process\n", pid);
+        }
+        return;
+    }
+
+    pid = job->pid;
+    jid = job->jid;
+
     kill(pid, SIGCONT);
+
     if (!strcmp(argv[0], "fg")) {
         job->state = FG;
         waitfg(pid);
@@ -332,7 +356,7 @@ void waitfg(pid_t pid) {
  *****************/
 
 /* from csapp.c, which takes from K&R*/
-static size_t sio_strlen(char s[]) { 
+static size_t sio_strlen(char s[]) {
     int i = 0;
 
     while (s[i] != '\0')
@@ -341,39 +365,36 @@ static size_t sio_strlen(char s[]) {
 }
 
 /* from csapp.c, which takes from K&R*/
-static void sio_reverse(char s[])
-{
+static void sio_reverse(char s[]) {
     int c, i, j;
 
-    for (i = 0, j = strlen(s)-1; i < j; i++, j--) {
-        c = s[i];
+    for (i = 0, j = strlen(s) - 1; i < j; i++, j--) {
+        c    = s[i];
         s[i] = s[j];
         s[j] = c;
     }
 }
 
 void sio_ltoa(long n, char s[], int base) {
-    int i = 0;
+    int i    = 0;
     int sign = (n < 0);
 
-    if(sign) 
+    if (sign)
         n = -n;
 
-    while(n > 0) {
+    while (n > 0) {
         s[i++] = (n % 10) + '0';
         n /= 10;
     }
 
-    if(sign)
+    if (sign)
         s[i++] = '-';
     s[i] = '\0';
 
     sio_reverse(s);
 }
 
-ssize_t sio_puts(char s[]) {
-    return write(STDOUT_FILENO, s, sio_strlen(s));
-}
+ssize_t sio_puts(char s[]) { return write(STDOUT_FILENO, s, sio_strlen(s)); }
 
 ssize_t sio_putl(long v) {
     char s[128];
@@ -401,8 +422,8 @@ void sigchld_handler(int sig) {
         }
         // Process terminated by a signal
         if (WIFSIGNALED(status)) {
-            //printf("Job [%d] (%d) ", pid2jid(pid), pid);
-            //printf("terminated by signal %d\n", WTERMSIG(status));
+            // printf("Job [%d] (%d) ", pid2jid(pid), pid);
+            // printf("terminated by signal %d\n", WTERMSIG(status));
             sio_puts("Job [");
             sio_putl(pid2jid(pid));
             sio_puts("] (");
@@ -410,14 +431,14 @@ void sigchld_handler(int sig) {
             sio_puts(") terminated by signal ");
             sio_putl(WTERMSIG(status));
             sio_puts("\n");
-            
+
             deletejob(jobs, pid);
             return;
         }
         // Process stopped by a signal
         if (WIFSTOPPED(status)) {
-            //printf("Job [%d] (%d) ", pid2jid(pid), pid);
-            //printf("stopped by signal %d\n", WSTOPSIG(status));
+            // printf("Job [%d] (%d) ", pid2jid(pid), pid);
+            // printf("stopped by signal %d\n", WSTOPSIG(status));
             sio_puts("Job [");
             sio_putl(pid2jid(pid));
             sio_puts("] (");
@@ -425,7 +446,7 @@ void sigchld_handler(int sig) {
             sio_puts(") stopped by signal ");
             sio_putl(WTERMSIG(status));
             sio_puts("\n");
-           
+
             getjobpid(jobs, pid)->state = ST;
             return;
         }
