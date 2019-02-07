@@ -300,10 +300,9 @@ int builtin_cmd(char** argv) {
         exit(0);
     }
 
-    // Run the special "do_bgfg" procedure to 
+    // Run the special "do_bgfg" procedure to
     // handle the bg and fg commands
-    if (!strcmp(argv[0], "fg") || 
-        !strcmp(argv[0], "bg")) {
+    if (!strcmp(argv[0], "fg") || !strcmp(argv[0], "bg")) {
         do_bgfg(argv);
         return 1; // Is a builtin command
     }
@@ -311,9 +310,9 @@ int builtin_cmd(char** argv) {
     // List the processes this shell is responsible for
     if (!strcmp(argv[0], "jobs")) {
         listjobs(jobs);
-        return 1; //Is a builtin command
+        return 1; // Is a builtin command
     }
- 
+
     return 0; // Is not a builtin command
 }
 
@@ -324,23 +323,23 @@ void do_bgfg(char** argv) {
     struct job_t* job;
     pid_t         pid = 0;
     pid_t         jid = 0;
-    
-    //Check if bg or fg received no argument
+
+    // Check if bg or fg received no argument
     if (argv[1] == NULL) {
         printf("%s command requires PID or %%jobid argument\n", argv[0]);
         return;
     }
 
     int isjob = (argv[1][0] == '%');
-    
-    if(isjob) {
+
+    if (isjob) {
         jid = atoi(argv[1] + 1);
 
         job = getjobjid(jobs, jid);
     } else {
         pid = atoi(argv[1]);
 
-        if(pid < 0) { // Argument was not readable as a number
+        if (pid < 0) { // Argument was not readable as a number
             printf("%s: argument must be a PID or %%jobid\n", argv[0]);
             return;
         }
@@ -373,40 +372,47 @@ void do_bgfg(char** argv) {
  * waitfg - Block until process pid is no longer the foreground process
  */
 void waitfg(pid_t pid) {
+    // Get the job associated with the process ID
     struct job_t* job = getjobpid(jobs, pid);
 
+    // Check if we have a valid job
     if (job == NULL) {
         return;
     }
+
+    // Wait while job is in foreground
     while (job->state == FG) {
         sleep(1);
     }
 }
 
 /*****************
- * Signal handlers
+ * Async safe IO functions for Signal handlers
  *****************/
 
 /* from csapp.c, which takes from K&R*/
+// Returns size of a string
 static size_t sio_strlen(char s[]) {
     int i = 0;
-
+    
     while (s[i] != '\0')
         ++i;
     return i;
 }
 
-/* from csapp.c, which takes from K&R*/
+/* from csapp.c, which takes from K&R, lightly modified*/
+// Reverses a string
 static void sio_reverse(char s[]) {
     int c, i, j;
 
-    for (i = 0, j = strlen(s) - 1; i < j; i++, j--) {
+    for (i = 0, j = sio_strlen(s) - 1; i < j; i++, j--) {
         c    = s[i];
         s[i] = s[j];
         s[j] = c;
     }
 }
 
+// Puts the string representation of long n in some given base into s
 void sio_ltoa(long n, char s[], int base) {
     int i    = 0;
     int sign = (n < 0);
@@ -426,13 +432,19 @@ void sio_ltoa(long n, char s[], int base) {
     sio_reverse(s);
 }
 
+// Writes a string to standard output async-safely
 ssize_t sio_puts(char s[]) { return write(STDOUT_FILENO, s, sio_strlen(s)); }
 
+// Writes a long integer to standard output async-safely
 ssize_t sio_putl(long v) {
     char s[128];
     sio_ltoa(v, s, 10);
     return sio_puts(s);
 }
+
+/*****************
+ * Signal handlers
+ *****************/
 
 /*
  * sigchld_handler - The kernel sends a SIGCHLD to the shell whenever
@@ -445,7 +457,8 @@ void sigchld_handler(int sig) {
     pid_t pid;
     int   status;
     int   saved_errno = errno;
-    // Should generally only run once
+
+    // Reap and/or check status of current pending processes
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
         // Process exited normally
         if (WIFEXITED(status)) {
@@ -492,13 +505,18 @@ void sigchld_handler(int sig) {
  *    to the foreground job.
  */
 void sigint_handler(int sig) {
+    int saved_errno = errno;
     struct job_t* job = getjobpid(jobs, fgpid(jobs));
 
+    // Check if job is valid
     if (job == NULL)
         return;
 
-    // send to foreground group?
-    kill(-1 * job->pid, SIGINT);
+    // Send SIGINT to all processes in job's process group
+    kill(-job->pid, SIGINT);
+
+    // Preserve errno in normal execution
+    errno = saved_errno;
 }
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
@@ -506,12 +524,18 @@ void sigint_handler(int sig) {
  *     foreground job by sending it a SIGTSTP.
  */
 void sigtstp_handler(int sig) {
+    int saved_errno = errno;
     struct job_t* job = getjobpid(jobs, fgpid(jobs));
 
+    // Check if job is valid
     if (job == NULL)
         return;
 
-    kill(-1 * job->pid, SIGTSTP);
+    // Send SIGSTP to all processes in job's process group
+    kill(-job->pid, SIGTSTP);
+
+    // Preserve errno in normal execution
+    errno = saved_errno;
 }
 
 /*********************
