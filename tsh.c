@@ -294,15 +294,26 @@ int builtin_cmd(char** argv) {
  * do_bgfg - Execute the builtin bg and fg commands
  */
 void do_bgfg(char** argv) {
-    pid_t         pid = atoi(argv[1]);
-    struct job_t* job = getjobpid(jobs, pid);
+	struct job_t* job;
+	pid_t pid = 0;
+	pid_t jid = 0;
+	if (argv[1][0] == '%') {
+		jid = atoi(argv[1]+1);
+		job = getjobjid(jobs, jid);
+		pid = job->pid;
+	} else {
+		pid = atoi(argv[1]);
+		job = getjobpid(jobs, pid);
+		jid = job->jid;
+	}
+	printf("[%d] (%d) %s", jid, pid, job->cmdline);
     if (!strcmp(argv[0], "fg")) {
         job->state = FG;
         waitfg(pid);
     } else if (!strcmp(argv[0], "bg")) {
         job->state = BG;
     }
-    //  kill(pid, SIGCONT);
+    kill(pid, SIGCONT);
 }
 
 /*
@@ -333,23 +344,23 @@ void waitfg(pid_t pid) {
  */
 void sigchld_handler(int sig) {
     pid_t pid;
-    int status;
+    int   status;
     // Should generally only run once
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
         // Process exited normally
-        if(WIFEXITED(status)) {
+        if (WIFEXITED(status)) {
             deletejob(jobs, pid);
             return;
         }
         // Process terminated by a signal
-        if(WIFSIGNALED(status)) {
+        if (WIFSIGNALED(status)) {
             printf("Job [%d] (%d) ", pid2jid(pid), pid);
             printf("terminated by signal %d\n", WTERMSIG(status));
             deletejob(jobs, pid);
             return;
         }
         // Process stopped by a signal
-        if(WIFSTOPPED(status)) {
+        if (WIFSTOPPED(status)) {
             printf("Job [%d] (%d) ", pid2jid(pid), pid);
             printf("stopped by signal %d\n", WSTOPSIG(status));
             getjobpid(jobs, pid)->state = ST;
@@ -367,7 +378,7 @@ void sigint_handler(int sig) {
     if (job == NULL)
         return;
 
-    if(kill(job->pid, SIGINT)) {
+    if (kill(job->pid, SIGINT)) {
         unix_error("Error in sigint_handler");
     }
 }
@@ -382,7 +393,7 @@ void sigtstp_handler(int sig) {
     if (job == NULL)
         return;
 
-    if(kill(job->pid, SIGTSTP)) {
+    if (kill(job->pid, SIGTSTP)) {
         unix_error("Error in sigtstp_handler");
     }
 }
