@@ -1,3 +1,4 @@
+#!/bin/bash
 make
 echo "" > testdiff
 for i in {1..16}
