@@ -318,7 +318,9 @@ void do_bgfg(char** argv) {
     pid = job->pid;
     jid = job->jid;
 
-    kill(-pid, SIGCONT);
+	if (job->state == ST) {
+		kill(-pid, SIGCONT);
+	}
 
     if (!strcmp(argv[0], "fg")) {
         job->state = FG;
