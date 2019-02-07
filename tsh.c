@@ -294,24 +294,24 @@ int builtin_cmd(char** argv) {
  * do_bgfg - Execute the builtin bg and fg commands
  */
 void do_bgfg(char** argv) {
-	struct job_t* job;
-	pid_t pid = 0;
-	pid_t jid = 0;
-	if (argv[1][0] == '%') {
-		jid = atoi(argv[1]+1);
-		job = getjobjid(jobs, jid);
-		pid = job->pid;
-	} else {
-		pid = atoi(argv[1]);
-		job = getjobpid(jobs, pid);
-		jid = job->jid;
-	}
+    struct job_t* job;
+    pid_t         pid = 0;
+    pid_t         jid = 0;
+    if (argv[1][0] == '%') {
+        jid = atoi(argv[1] + 1);
+        job = getjobjid(jobs, jid);
+        pid = job->pid;
+    } else {
+        pid = atoi(argv[1]);
+        job = getjobpid(jobs, pid);
+        jid = job->jid;
+    }
     kill(pid, SIGCONT);
     if (!strcmp(argv[0], "fg")) {
         job->state = FG;
         waitfg(pid);
     } else if (!strcmp(argv[0], "bg")) {
-		printf("[%d] (%d) %s", jid, pid, job->cmdline);
+        printf("[%d] (%d) %s", jid, pid, job->cmdline);
         job->state = BG;
     }
 }
@@ -320,10 +320,6 @@ void do_bgfg(char** argv) {
  * waitfg - Block until process pid is no longer the foreground process
  */
 void waitfg(pid_t pid) {
-    //  int status;
-    //  if (waitpid(pid, &status, WUNTRACED) < 0)
-    //      unix_error("waitfg: waitpid error");
-
     struct job_t* job = getjobpid(jobs, pid);
 
     while (job->state == FG) {
@@ -335,6 +331,56 @@ void waitfg(pid_t pid) {
  * Signal handlers
  *****************/
 
+/* from csapp.c, which takes from K&R*/
+static size_t sio_strlen(char s[]) { 
+    int i = 0;
+
+    while (s[i] != '\0')
+        ++i;
+    return i;
+}
+
+/* from csapp.c, which takes from K&R*/
+static void sio_reverse(char s[])
+{
+    int c, i, j;
+
+    for (i = 0, j = strlen(s)-1; i < j; i++, j--) {
+        c = s[i];
+        s[i] = s[j];
+        s[j] = c;
+    }
+}
+
+void sio_ltoa(long n, char s[], int base) {
+    int i = 0;
+    int sign = (n < 0);
+
+    if(sign) 
+        n = -n;
+
+    while(n > 0) {
+        s[i++] = (n % 10) + '0';
+        n /= 10;
+    }
+
+    if(sign)
+        s[i++] = '-';
+    s[i] = '\0';
+
+    sio_reverse(s);
+}
+
+ssize_t sio_puts(char s[]) {
+    return write(STDOUT_FILENO, s, sio_strlen(s));
+}
+
+ssize_t sio_putl(long v) {
+    char s[128];
+    sio_ltoa(v, s, 10);
+    return sio_puts(s);
+}
+
 /*
  * sigchld_handler - The kernel sends a SIGCHLD to the shell whenever
  *     a child job terminates (becomes a zombie), or stops because it
@@ -345,6 +391,7 @@ void waitfg(pid_t pid) {
 void sigchld_handler(int sig) {
     pid_t pid;
     int   status;
+    int   saved_errno = errno;
     // Should generally only run once
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
         // Process exited normally
@@ -354,18 +401,37 @@ void sigchld_handler(int sig) {
         }
         // Process terminated by a signal
         if (WIFSIGNALED(status)) {
-            printf("Job [%d] (%d) ", pid2jid(pid), pid);
-            printf("terminated by signal %d\n", WTERMSIG(status));
+            //printf("Job [%d] (%d) ", pid2jid(pid), pid);
+            //printf("terminated by signal %d\n", WTERMSIG(status));
+            sio_puts("Job [");
+            sio_putl(pid2jid(pid));
+            sio_puts("] (");
+            sio_putl(pid);
+            sio_puts(") terminated by signal ");
+            sio_putl(WTERMSIG(status));
+            sio_puts("\n");
+            
             deletejob(jobs, pid);
             return;
         }
         // Process stopped by a signal
         if (WIFSTOPPED(status)) {
-            printf("Job [%d] (%d) ", pid2jid(pid), pid);
-            printf("stopped by signal %d\n", WSTOPSIG(status));
+            //printf("Job [%d] (%d) ", pid2jid(pid), pid);
+            //printf("stopped by signal %d\n", WSTOPSIG(status));
+            sio_puts("Job [");
+            sio_putl(pid2jid(pid));
+            sio_puts("] (");
+            sio_putl(pid);
+            sio_puts(") stopped by signal ");
+            sio_putl(WTERMSIG(status));
+            sio_puts("\n");
+           
             getjobpid(jobs, pid)->state = ST;
+            return;
         }
     }
+
+    errno = saved_errno;
 }
 /*
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
@@ -378,9 +444,8 @@ void sigint_handler(int sig) {
     if (job == NULL)
         return;
 
-    if (kill(job->pid, SIGINT)) {
-        unix_error("Error in sigint_handler");
-    }
+    // send to foreground group?
+    kill(-1 * job->pid, SIGINT);
 }
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
@@ -393,9 +458,7 @@ void sigtstp_handler(int sig) {
     if (job == NULL)
         return;
 
-    if (kill(job->pid, SIGTSTP)) {
-        unix_error("Error in sigtstp_handler");
-    }
+    kill(-1 * job->pid, SIGTSTP);
 }
 
 /*********************
