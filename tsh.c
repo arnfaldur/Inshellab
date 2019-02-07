@@ -179,10 +179,18 @@ void eval(char* cmdline) {
     char  buf[MAXLINE];
     int   bg;
     pid_t pid;
+
+    // Save the cmdline into a local buffer
     strcpy(buf, cmdline);
+    
+    // Parse the raw command line input
     bg = parseline(buf, argv);
+    
+    // Just return to prompt if there are no arguments
     if (argv[0] == NULL)
         return;
+    
+    // Automatically run native shell commands
     if (builtin_cmd(argv))
         return;
 
@@ -193,9 +201,13 @@ void eval(char* cmdline) {
     sigaddset(&mask, SIGCHLD);
     sigprocmask(SIG_BLOCK, &mask, NULL);
 
+    /* Fork a new process to run user job */
     if ((pid = fork()) == 0) { // Child runs job
-        setpgid(0, 0);
+        // Give new process it's own foreground group
+        setpgid(0, 0); 
+        // Unblock SIGCHLD signals
         sigprocmask(SIG_UNBLOCK, &mask, NULL);
+        //Attempt to run the given command
         if (execve(argv[0], argv, environ) < 0) {
             printf("%s: Command not found\n", argv[0]);
             exit(0);
@@ -203,11 +215,13 @@ void eval(char* cmdline) {
     }
     addjob(jobs, pid, bg ? BG : FG, buf);
     sigprocmask(SIG_UNBLOCK, &mask, NULL);
-    /* Parent waits for foreground job to terminate */
 
+    /* Determine if process is to be run in foreground or background */
     if (!bg) {
+        // Wait for foreground job to terminate
         waitfg(pid);
     } else {
+        // Print out information about background process and continue
         printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
     }
 
